@@ -1,211 +1,199 @@
-# Locus — Citation-First Medical Intake
+# LOCUS — Citation-First Clinical Intelligence Platform
+THIS has all been done during mid sems, right in the middle. 
 
-> Samsung PRISM Gen AI Hackathon 2026 submission by Team Kraken.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Samsung PRISM](https://img.shields.io/badge/Samsung%20PRISM-Gen%20AI%20Hackathon%202026-blue)](https://github.com/SagarNegi1/Locus)
 
-Locus is a web prototype that helps patients and clinicians turn medical PDFs into a reviewable, longitudinal health record. A user uploads a medical PDF; the system screens the document, extracts structured facts with Gemini, attaches a confidence level and page-aware source location to each fact, and presents the result in a patient timeline and clinician workspace.
+**LOCUS** is a citation-first medical document intelligence prototype. It helps users convert uploaded medical PDFs into structured, reviewable clinical records while keeping a direct path back to the source document for human verification.
 
-The goal is not to replace clinical judgement. It is to reduce the time required to locate information in scattered medical records while retaining a direct path back to the source document for human review.
+Repository: `https://github.com/SagarNegi1/Locus`
+
+> This project is a hackathon prototype. It is not a diagnostic device, emergency service, or substitute for a licensed clinician.
+
+---
 
 ## Problem
 
-Medical histories are often split across lab reports, prescriptions, discharge summaries, imaging reports, and clinical notes. Manually assembling a usable timeline is slow, and an extracted summary without evidence is difficult to trust. Locus addresses both problems by combining structured extraction with citation-first verification.
+Patients and clinicians often deal with scattered lab reports, prescriptions, discharge summaries, imaging reports, and clinical notes. Manually assembling a useful timeline is slow, and AI-generated summaries are hard to trust when the source evidence is hidden.
 
-## What Locus does
+LOCUS focuses on **evidence-first medical intake**: extract structured facts, attach confidence and source locations, and let a reviewer open the original PDF to verify the claim.
 
-- Accepts PDF medical records up to 20 MB and rejects non-PDF uploads in the client.
-- Hashes uploads to detect duplicate documents before costly processing.
-- Performs an AI pre-check for non-medical documents, wrong-patient records, poor legibility, and unsupported languages.
-- Extracts explicitly documented clinical information into a schema rather than free-form prose.
-- Associates extracted items with `High`, `Medium`, or `Low` confidence plus a normalized bounding box and source-page number.
-- Displays diagnoses, medications, lab results, allergies, procedures, vitals, codes, symptoms, imaging/pathology findings, follow-ups, referrals, and other documented record details.
-- Builds a de-duplicated timeline and flags abnormal labs and documented allergy/medication conflicts for review.
-- Provides patient onboarding, a patient workspace, a clinician triage view, source-PDF review, time-limited sharing, export, and authenticated record deletion.
+---
 
-## How it works
+## Theme 4 fit — Streaming Live RAG
+
+Theme 4 asks for retrieval that can understand natural requests, split multiple intents, retrieve the right context, and refine an answer when new details arrive. LOCUS applies that idea to medical-record review by turning uploaded documents into a session-grounded evidence layer.
+
+The final demo should show the current implemented workflow honestly. If the submitted build includes a live transcript/replay route, use it for the Theme 4 section. If the submitted build only includes medical PDF intake, describe it as a citation-first intake foundation and do not claim full-duplex streaming RAG benchmarks.
+
+---
+
+## What LOCUS does
+
+- Accepts PDF medical records and rejects unsupported files at upload time.
+- Uses SHA-256 hashing to detect duplicate documents before expensive processing.
+- Runs AI-based checks for non-medical documents, wrong-patient uploads, poor legibility, and unsupported language.
+- Extracts documented clinical facts into structured JSON instead of unsupported free-form summaries.
+- Extracts diagnoses, medications, lab results, allergies, procedures, vitals, codes, symptoms, imaging/pathology findings, follow-ups, referrals, and related record details where present.
+- Attaches confidence labels, source-page metadata, and normalized bounding boxes to extracted facts.
+- Builds a de-duplicated timeline and supports source-PDF review, clinician triage, temporary sharing, export, and authenticated deletion.
+
+---
+
+## Architecture
 
 ```text
-Patient signs in
-      |
-      v
+Patient / clinician signs in
+        |
+        v
 Upload PDF -> SHA-256 duplicate check -> Supabase Storage
-      |                                      |
-      v                                      v
-Gemini pre-check and schema-enforced extraction
-      |
-      v
-Structured JSON + confidence + page/bounding-box citations
-      |
-      +--> Supabase `medical_records` --> Patient timeline / clinician triage / sharing
-      |
-      +--> Source viewer for human verification
+        |
+        v
+Gemini pre-check -> structured extraction -> safety/review signals
+        |
+        v
+Supabase medical_records table
+        |
+        +--> Patient timeline / clinician workspace
+        +--> Source PDF viewer with citation highlights
+        +--> Export and sharing flows
 ```
 
-The main extraction route is `POST /api/extract/gemini`. It retrieves the uploaded PDF server-side and invokes Google Gemini with a structured JSON schema. The project also contains `POST /api/extract/ocr`, which uses Google Cloud Document AI to return raw text and layout blocks for OCR-oriented integrations.
+Main routes and modules:
 
-## Core AI design
+- `POST /api/extract/gemini` — Gemini-based pre-check and structured extraction.
+- `POST /api/extract/ocr` — optional Google Cloud Document AI OCR/layout route.
+- `/patient` — upload, extracted facts, timeline, source review, sharing, export.
+- `/doctor` and `/doctor/patient/[id]` — clinician triage and patient review.
+- `/shared/[id]` — expiring shared timeline view.
 
-Locus asks the model to extract only facts explicitly present in the source document. Each extracted item is paired with:
+---
 
-- a confidence level (`High`, `Medium`, or `Low`),
-- a bounding box in `[ymin, xmin, ymax, xmax]` format, normalized to a 1000 × 1000 page, and
-- a one-based source page number.
-
-The extraction schema covers encounter/document dates, diagnoses, medications, lab results, allergies, procedures, vitals, physicians, ICD/CPT codes, family/social history, imaging/pathology findings, symptoms, chronic-disease indicators, vaccinations, facilities, insurance, emergency contacts, follow-up recommendations, pregnancy status, discharge details, and referral recommendations.
-
-Before full extraction, the app rejects a document when the AI identifies it as non-medical, belonging to a different patient, too illegible, or not primarily English. The patient can enable a stricter identity-match preference. These checks reduce bad inputs; they are not a substitute for clinical or identity verification.
-
-## Technology stack
+## Tech stack
 
 | Area | Technology |
 | --- | --- |
-| Web framework | Next.js 16, React 19, TypeScript |
-| Styling and UI | Tailwind CSS, Radix UI, shadcn/ui, Motion, Lucide |
-| Generative AI | Google Gemini via `@google/genai` |
+| Frontend | Next.js App Router, React, TypeScript |
+| UI | Tailwind CSS, Radix UI / shadcn-style components, Motion, Lucide icons |
+| AI | Google Gemini via `@google/genai` |
 | OCR/layout endpoint | Google Cloud Document AI |
-| Authentication, database, storage | Supabase |
-| PDF viewing and export | react-pdf, jsPDF, jsPDF-AutoTable |
+| Backend/data | Next.js API routes, Supabase Auth, PostgreSQL, Supabase Storage |
+| PDF | `react-pdf`, PDF.js, `jsPDF`, `jspdf-autotable` |
 
-See [`requirement.txt`](requirement.txt) for the full direct dependency and service manifest. `package.json` and `package-lock.json` remain the canonical install manifests for this JavaScript project.
+See [`requirement.txt`](requirement.txt) for the dependency and service summary. `package.json` and `package-lock.json` are the canonical dependency manifests.
+
+---
 
 ## Local setup
 
 ### Prerequisites
 
-- Node.js `>= 20.9.0` (required by the installed Next.js version)
+- Node.js `>= 20.9.0`
 - npm
-- A Supabase project
-- A Gemini API key
-- Google Cloud Document AI configuration if the OCR endpoint will be used
+- Supabase project
+- Gemini API key
+- Google Cloud Document AI configuration if using the OCR route
 
-### Install and run
+### Run locally
 
 ```bash
-git clone <YOUR-GITHUB-REPOSITORY-URL>
-cd medical-intakev3
+git clone https://github.com/SagarNegi1/Locus.git
+cd Locus
 npm ci
 cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Fill in `.env.local` before trying authentication, upload, or AI extraction. Do not commit that file.
+Open `http://localhost:3000` and fill `.env.local` before testing authentication, upload, extraction, or OCR.
 
 ### Environment variables
 
-Copy [`.env.example`](.env.example) to `.env.local` and replace every placeholder with your own project values.
-
-| Variable | Used for |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL used by the web client |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase publishable/anon key used by the web client |
-| `GEMINI_API_KEY` | Server-side Gemini extraction requests |
-| `DOCUMENT_AI_PROJECT_ID` | Google Cloud project for the OCR endpoint |
-| `DOCUMENT_AI_LOCATION` | Region of the Document AI processor |
-| `DOCUMENT_AI_PROCESSOR_ID` | Document AI processor ID |
-
-The Document AI SDK also needs Application Default Credentials or an equivalent server-side Google Cloud authentication setup. Never commit a service-account key, API key, `.env.local`, or real medical document to Git.
-
-### Supabase setup expected by the app
-
-This repository contains the application code but no Supabase migration files. Configure the following resources in the project used for local development or deployment:
-
-- Enable Supabase Auth with the sign-in methods used by the team.
-- Create a `records` Storage bucket. The current upload flow calls `getPublicUrl`, so use non-sensitive demo data only until production-grade private storage, signed URLs, and row-level access policies are in place.
-- Create a `medical_records` table with fields used by the app: `id`, `user_id`, `pdf_url`, `extracted_data` (JSON/JSONB), `file_hash`, `created_at`, and optionally `clinic_id` for clinician filtering.
-- Create a `shared_links` table with at least `id`, `user_id`, and `expires_at` for temporary sharing links.
-- Add row-level security policies appropriate to the deployment. Users should only access records and shares they are authorized to see.
-
-## Project structure
-
-```text
-src/
-  app/
-    api/extract/gemini/   Structured extraction and pre-check route
-    api/extract/ocr/      Document AI OCR/layout route
-    api/records/delete/   Authenticated record deletion route
-    patient/              Patient dashboard, upload, timeline, source review
-    doctor/               Clinician triage and patient review screens
-    shared/               Expiring shared-timeline screen
-    onboarding/           Patient and clinician onboarding
-  components/             Shared experience and UI components
-  utils/                  PDF dossier and Supabase helpers
-lib/
-  supabase.ts             Shared Supabase client
-public/
-  images/                 Local visual assets
-Lab Reports Gen/          Demo PDF fixtures for presentation/testing
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+GEMINI_API_KEY=your_gemini_api_key
+DOCUMENT_AI_PROJECT_ID=your_google_cloud_project_id
+DOCUMENT_AI_LOCATION=your_document_ai_location
+DOCUMENT_AI_PROCESSOR_ID=your_document_ai_processor_id
 ```
+
+Never commit `.env.local`, service-account files, API keys, or real patient data.
+
+---
+
+## Supabase setup expected by the app
+
+Configure these resources in the Supabase project used for demo or deployment:
+
+- Supabase Auth with the selected sign-in method.
+- A `records` Storage bucket. Use only synthetic or de-identified demo data unless private storage and signed URLs are fully configured.
+- A `medical_records` table with at least: `id`, `user_id`, `pdf_url`, `extracted_data`, `file_hash`, `created_at`, and optionally `clinic_id`.
+- A `shared_links` table with `id`, `user_id`, `expires_at`, and any fields used by the sharing route.
+- Row-level security policies appropriate to the demo environment.
+
+---
 
 ## Useful commands
 
 ```bash
-npm run dev       # Start the development server
-npm run lint      # Run ESLint
-npx tsc --noEmit  # Type-check without emitting files
-npm run build     # Create a production build
-npm run start     # Serve a completed production build
+npm run dev       # start development server
+npm run lint      # run ESLint
+npx tsc --noEmit  # type-check
+npm run build     # production build
+npm run start     # serve production build
 ```
 
-No automated test suite is currently checked into this repository. For a demo, use only synthetic or fully de-identified records and validate each extracted item against the linked source location.
+---
 
-## Routes and product surfaces
+## Demo Video
 
-| Route | Purpose |
-| --- | --- |
-| `/` | Welcome experience and authentication entry point |
-| `/onboarding` | Collects patient or clinician profile details |
-| `/patient` | Upload, extracted data, source review, timeline, insights, and sharing |
-| `/doctor` | Clinic triage queue grouped by patient |
-| `/doctor/patient/[id]` | Detailed clinician view for a selected patient |
-| `/shared/[id]` | Expiring shared timeline |
+[Watch the LOCUS demo video on Google Drive](https://drive.google.com/file/d/1DcEpTUA0IMhCuFKehLE-BHw70ZPRBk0N/view?usp=sharing)
 
-## Safety, privacy, and limitations
-
-- Locus is a hackathon prototype and **not a diagnostic device, emergency service, or substitute for a licensed clinician**.
-- AI output can be incomplete or incorrect. Users and clinicians must review original documents before acting on extracted information.
-- The current intake experience accepts English PDFs only and has a 20 MB client-side size limit.
-- Never upload real patient health information to a public demo, repository, or unapproved cloud project.
-- Keep secrets only in deployment environment variables. If a secret was ever exposed, revoke/rotate it before publishing the repository or demo.
-- The current public-URL storage implementation is suitable only for controlled demo data; it requires additional access controls before any real-world use.
+---
 
 ## AI disclosure
 
-See [AI_DISCLOSURE.md](AI_DISCLOSURE.md) for the technologies, roles, safeguards, and known limitations of AI used in this submission.
+See [`AI_DISCLOSURE.md`](AI_DISCLOSURE.md). The project uses Gemini at runtime for document pre-check/extraction and used generative AI tools during development and documentation. Human review is required for all AI-produced outputs.
 
-## Hackathon submission checklist
+---
 
-Included in this repository:
+## Safety and limitations
 
-- [x] Source code
-- [x] Dependency manifest: [`requirement.txt`](requirement.txt), `package.json`, and `package-lock.json`
-- [x] Detailed README
+- LOCUS is a hackathon prototype, not a medical device.
+- AI output can be incomplete, inaccurate, or incorrectly cited.
+- Users must verify source documents before acting on extracted facts.
+- Use only synthetic or fully de-identified records in demos.
+- The current public-demo storage approach requires additional privacy, security, access-control, and compliance review before any real health-data use.
+
+---
+
+## Samsung PRISM submission checklist
+
+- [x] Source code in repository
+- [x] README
+- [x] Dependency/service summary
 - [x] AI disclosure
-- [x] Demo PDF fixtures
+- [x] Presentation deck prepared
+- [x] Demo video link added to README
+- [ ] Final release tag pushed: `PRISM_GENAI_HACKATHON_Y2026`
+- [ ] Google Form submitted manually by the team
 
-To be added by Team Kraken before final submission:
-
-- [ ] Presentation deck (for example, `docs/Team-Kraken-PRISM-2026.pptx`)
-- [ ] Demo video or a YouTube/Drive link placed in this README
-- [ ] A pushed Git tag named `PRISM_GENAI_HACKATHON_Y2026`
-- [ ] Repository URL in the Samsung PRISM form
-
-## Create the required Git tag
-
-After committing the final submission files, create and push the exact tag requested by the form:
+Create the required tag only after the final PPT/video references and documentation are committed:
 
 ```bash
-git add README.md requirement.txt .env.example AI_DISCLOSURE.md
-git commit -m "docs: prepare PRISM Gen AI Hackathon submission"
+git add README.md requirement.txt AI_DISCLOSURE.md .env.example .gitignore
+git commit -m "docs: finalize Samsung PRISM submission materials"
 git tag -a PRISM_GENAI_HACKATHON_Y2026 -m "Samsung PRISM Gen AI Hackathon 2026"
-git push origin HEAD
+git push origin main
 git push origin PRISM_GENAI_HACKATHON_Y2026
 ```
 
-On GitHub, verify that the tag appears under **Releases → Tags**. A Git tag is a named pointer to the exact committed submission version; it is not an APK, a file you upload manually, or a different AI feature.
+---
 
 ## Team
 
-**Team Kraken**
+**Team Kraken**  
+College: **VIT Vellore / VITV**  
+Theme: **04 — Streaming Live RAG**  
+Project: **LOCUS**
 
-Samsung PRISM | Gen AI Hackathon | 2026
-
-Update this section with the complete team roster, college, presentation link, and demo video link before the final GitHub submission.
