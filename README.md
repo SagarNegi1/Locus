@@ -149,6 +149,10 @@ npm run start     # serve production build
 
 [Watch the LOCUS demo video on Google Drive](https://drive.google.com/file/d/1DcEpTUA0IMhCuFKehLE-BHw70ZPRBk0N/view?usp=sharing)
 
+## Submission Presentation
+
+[View the Team Kraken Samsung PRISM submission presentation](https://github.com/SagarNegi1/Locus/blob/main/VITV_TeamKraken_Submission.pptx)
+
 ---
 
 ## AI disclosure
